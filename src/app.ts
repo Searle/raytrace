@@ -61,14 +61,15 @@ const ray = (orig: Point3, direction: Vec3) => new Ray(orig, direction);
 
 const hit_sphere = (center: Point3, radius: number, r: Ray) => {
     const oc = r.origin.sub(center);
-    const a = dot(r.direction, r.direction);
-    const b = 2 * dot(oc, r.direction);
-    const c = dot(oc, oc) - radius * radius;
-    const discriminant = b * b - 4 * a * c;
+    const a = r.direction.lengthSquared();
+    const half_b = dot(oc, r.direction);
+    const c = oc.lengthSquared() - radius * radius;
+    const discriminant = half_b * half_b - a * c;
+
     if (discriminant < 0) {
         return -1;
     }
-    return (-b - Math.sqrt(discriminant)) / (2.0 * a);
+    return (-half_b - Math.sqrt(discriminant)) / a;
 };
 
 const ray_color = (r: Ray): Color => {
