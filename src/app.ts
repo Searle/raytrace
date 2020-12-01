@@ -65,12 +65,18 @@ const hit_sphere = (center: Point3, radius: number, r: Ray) => {
     const b = 2 * dot(oc, r.direction);
     const c = dot(oc, oc) - radius * radius;
     const discriminant = b * b - 4 * a * c;
-    return discriminant > 0;
+    if (discriminant < 0) {
+        return -1;
+    }
+    return (-b - Math.sqrt(discriminant)) / (2.0 * a);
 };
 
 const ray_color = (r: Ray): Color => {
-    if (hit_sphere(point3(0, 0, -1), 0.5, r)) return color(1, 0, 0);
-
+    const t0 = hit_sphere(point3(0, 0, -1), 0.5, r);
+    if (t0 > 0) {
+        const N = unitVector(r.at(t0).sub(vec3(0, 0, -1)));
+        return cmul(0.5, color(N.x + 1, N.y + 1, N.z + 1));
+    }
     const unit_direction = unitVector(r.direction);
     const t = 0.5 * (unit_direction.y + 1.0);
     return lerp(color(1.0, 1.0, 1.0), color(0.5, 0.7, 1.0), t);
