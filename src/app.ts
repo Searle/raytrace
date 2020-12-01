@@ -85,6 +85,15 @@ const randomv2 = (min: number, max: number) =>
         random_double2(min, max)
     );
 const reflect = (v: Vec3, n: Vec3) => v.sub(cmul(2 * dot(v, n), n));
+const refract = (uv: Vec3, n: Vec3, etai_over_etat: number) => {
+    const cos_theta = Math.min(dot(uv.neg(), n), 1);
+    const r_out_perp = cmul(etai_over_etat, uv.add(cmul(cos_theta, n)));
+    const r_out_parallel = cmul(
+        -Math.sqrt(Math.abs(1.0 - r_out_perp.lengthSquared())),
+        n
+    );
+    return r_out_perp.add(r_out_parallel);
+};
 
 import Point3 = Vec.Vec3;
 const point3 = (x: number, y: number, z: number) => new Point3(x, y, z);
@@ -298,6 +307,25 @@ class Metal implements Material {
     }
 }
 
+class Dielectric implements Material {
+    // ir = index_of_refraction
+    constructor(public ir: number) {}
+
+    public scatter(
+        r_in: Ray,
+        rec: HitRecord,
+        attenuation: Color,
+        scattered: Ray
+    ) {
+        attenuation.copy(color(1.0, 1.0, 1.0));
+        const refraction_ratio = rec.front_face ? 1.0 / this.ir : this.ir;
+        const unit_direction = unitVector(r_in.direction);
+        const refracted = refract(unit_direction, rec.normal, refraction_ratio);
+        scattered.copy(ray(rec.p, refracted));
+        return true;
+    }
+}
+
 const ray_color = (r: Ray, world: Hittable, depth: number): Color => {
     if (depth <= 0) return zeroColor;
 
@@ -320,11 +348,11 @@ const main = () => {
     const imageWidth = 300;
     const imageHeight = Math.floor(imageWidth / aspect_ratio);
     const samples_per_pixel = 20;
-    const max_depth = 3;
+    const max_depth = 10;
 
     const material_ground = new Lambertian(color(0.8, 0.8, 0.0));
-    const material_center = new Lambertian(color(0.7, 0.3, 0.3));
-    const material_left = new Metal(color(0.8, 0.8, 0.8), 0.3);
+    const material_center = new Dielectric(1.5);
+    const material_left = new Dielectric(1.5);
     const material_right = new Metal(color(0.8, 0.6, 0.2), 1);
 
     const world = new HittableList();
