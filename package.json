@@ -1,0 +1,21 @@
+{
+  "name": "raytrace",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "poi": "^12.7.5"
+  },
+  "scripts": {
+    "dev": "poi src/index.html --serve",
+    "build": "poi src/index.html --prod",
+    "deploy": "cap copy"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.0.0-0",
+    "@babel/preset-react": "^7.8.3",
+    "@poi/plugin-typescript": "^12.2.1",
+    "babel-plugin-transform-class-properties": "^6.24.1",
+    "typescript": "^4.1.0"
+  }
+}

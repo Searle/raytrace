@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "target": "ES5",
+        "module": "commonjs",
+        "noImplicitAny": true,
+        "removeComments": true,
+        "preserveConstEnums": true,
+        "strict": true,
+        "strictNullChecks": true,
+        "sourceMap": true,
+        "allowSyntheticDefaultImports": true
+    },
+    "files": [
+        "src/app.ts"
+    ]
+}

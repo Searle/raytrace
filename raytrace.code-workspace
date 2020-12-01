@@ -1,0 +1,21 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "prettier.tabWidth": 4,
+        "prettier.trailingComma": "es5",
+        "typescript.format.enable": false,
+        "javascript.format.enable": false,
+        "html.format.enable": false,
+        "json.format.enable": false,
+        "editor.formatOnSave": true,
+        "[typescript]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "typescript.tsdk": "node_modules\\typescript\\lib",
+        "editor.wordWrap": "on"
+    }
+}

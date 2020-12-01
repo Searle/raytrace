@@ -1,0 +1,7 @@
+.cache/
+dist/
+node_modules/
+save/
+yarn-error.log
+art/*.tif
+TMP/
