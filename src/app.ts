@@ -1,5 +1,10 @@
 // https://raytracing.github.io/books/RayTracingInOneWeekend.html
 
+const infinity = Number.POSITIVE_INFINITY;
+const pi = Math.PI;
+
+const degrees_to_radians = (degrees: number) => (degrees * pi) / 180;
+
 module Vec {
     export class Vec3 {
         constructor(public x: number, public y: number, public z: number) {}
@@ -28,7 +33,6 @@ module Vec {
 }
 
 import Vec3 = Vec.Vec3;
-
 const vec3 = (x = 0, y = 0, z = 0) => new Vec3(x, y, z);
 
 const add = (u: Vec3, v: Vec3) => vec3(u.x + v.x, u.y + v.y, u.z + v.z);
@@ -56,8 +60,89 @@ class Ray {
         return this.origin.add(cmul(t, this.direction));
     }
 }
-
 const ray = (orig: Point3, direction: Vec3) => new Ray(orig, direction);
+
+class HitRecord {
+    public t!: number;
+    public p!: Point3;
+    public front_face!: boolean;
+    public normal!: Vec3;
+
+    set_face_normal(r: Ray, outward_normal: Vec3) {
+        this.front_face = dot(r.direction, outward_normal) < 0;
+        this.normal = this.front_face ? outward_normal : outward_normal.neg();
+    }
+}
+
+interface Hittable {
+    hit: (r: Ray, t_min: number, t_max: number, rec: HitRecord) => boolean;
+}
+
+class HittableList implements Hittable {
+    public hittables: Hittable[] = [];
+
+    constructor(hittable?: Hittable) {
+        if (hittable) this.add(hittable);
+    }
+
+    clear() {
+        this.hittables.length = 0;
+    }
+
+    add(hittable: Hittable) {
+        this.hittables.push(hittable);
+    }
+
+    public hit(r: Ray, t_min: number, t_max: number, rec: HitRecord) {
+        let temp_rec = new HitRecord();
+        let hit_anything = false;
+        let closest_so_far = t_max;
+
+        for (const hittable of this.hittables) {
+            if (hittable.hit(r, t_min, closest_so_far, temp_rec)) {
+                hit_anything = true;
+                closest_so_far = temp_rec.t;
+                //rec.t = temp_rec.t;
+                //rec.p = temp_rec.p;
+                //rec.front_face = temp_rec.front_face;
+                rec.normal = temp_rec.normal;
+            }
+        }
+        return hit_anything;
+    }
+}
+
+class Sphere implements Hittable {
+    constructor(public center: Point3, public radius: number) {}
+
+    public hit(r: Ray, t_min: number, t_max: number, rec: HitRecord) {
+        const oc = r.origin.sub(this.center);
+        const a = r.direction.lengthSquared();
+        const half_b = dot(oc, r.direction);
+        const c = oc.lengthSquared() - this.radius * this.radius;
+        const discriminant = half_b * half_b - a * c;
+
+        if (discriminant < 0) {
+            return false;
+        }
+
+        const sqrtd = Math.sqrt(discriminant);
+
+        // Find the nearest root that lies in the acceptable range.
+        let root = (-half_b - sqrtd) / a;
+        if (root < t_min || t_max < root) {
+            root = (-half_b + sqrtd) / a;
+            if (root < t_min || t_max < root) return false;
+        }
+
+        rec.t = root;
+        rec.p = r.at(root);
+        const outward_normal = divc(rec.p.sub(this.center), this.radius);
+        rec.set_face_normal(r, outward_normal);
+
+        return true;
+    }
+}
 
 const hit_sphere = (center: Point3, radius: number, r: Ray) => {
     const oc = r.origin.sub(center);
@@ -72,11 +157,10 @@ const hit_sphere = (center: Point3, radius: number, r: Ray) => {
     return (-half_b - Math.sqrt(discriminant)) / a;
 };
 
-const ray_color = (r: Ray): Color => {
-    const t0 = hit_sphere(point3(0, 0, -1), 0.5, r);
-    if (t0 > 0) {
-        const N = unitVector(r.at(t0).sub(vec3(0, 0, -1)));
-        return cmul(0.5, color(N.x + 1, N.y + 1, N.z + 1));
+const ray_color = (r: Ray, world: Hittable): Color => {
+    let rec = new HitRecord();
+    if (world.hit(r, 0, infinity, rec)) {
+        return cmul(0.5, rec.normal.add(color(1, 1, 1)));
     }
     const unit_direction = unitVector(r.direction);
     const t = 0.5 * (unit_direction.y + 1.0);
@@ -87,6 +171,10 @@ const main = () => {
     const aspect_ratio = 16.0 / 9.0;
     const imageWidth = 400;
     const imageHeight = Math.floor(imageWidth / aspect_ratio);
+
+    const world = new HittableList();
+    world.add(new Sphere(point3(0, 0, -1), 0.5));
+    world.add(new Sphere(point3(0, -100.5, -1), 100));
 
     const viewport_height = 2.0;
     const viewport_width = aspect_ratio * viewport_height;
@@ -118,7 +206,7 @@ const main = () => {
                             .add(cmul(v, vertical))
                             .sub(origin)
                     );
-                    const pixel_color = ray_color(r);
+                    const pixel_color = ray_color(r, world);
 
                     imageData.data[i] = pixel_color.x * 255;
                     imageData.data[i + 1] = pixel_color.y * 255;
