@@ -121,8 +121,10 @@ class Camera {
     public horizontal: Vec3;
     public vertical: Vec3;
 
-    constructor(aspect_ratio: number) {
-        const viewport_height = 2.0;
+    constructor(vfov: number, aspect_ratio: number) {
+        const theta = degrees_to_radians(vfov);
+        const h = Math.tan(theta / 2);
+        const viewport_height = 2.0 * h;
         const viewport_width = aspect_ratio * viewport_height;
         const focal_length = 1.0;
 
@@ -364,13 +366,7 @@ const ray_color = (r: Ray, world: Hittable, depth: number): Color => {
     return lerp(color(1.0, 1.0, 1.0), color(0.5, 0.7, 1.0), t);
 };
 
-const main = () => {
-    const aspect_ratio = 16.0 / 9.0;
-    const imageWidth = 300;
-    const imageHeight = Math.floor(imageWidth / aspect_ratio);
-    const samples_per_pixel = 20;
-    const max_depth = 10;
-
+const world1 = () => {
     const material_ground = new Lambertian(color(0.8, 0.8, 0.0));
     const material_center = new Lambertian(color(0.1, 0.2, 0.5));
     const material_left = new Dielectric(1.5);
@@ -380,9 +376,35 @@ const main = () => {
     world.add(new Sphere(point3(0, -100.5, -1), 100, material_ground));
     world.add(new Sphere(point3(0, 0, -1), 0.5, material_center));
     world.add(new Sphere(point3(-1, 0, -1), 0.5, material_left));
+    world.add(new Sphere(point3(-1, 0, -1), -0.45, material_left));
     world.add(new Sphere(point3(1, 0, -1), 0.5, material_right));
 
-    const cam = new Camera(aspect_ratio);
+    return world;
+};
+
+const world2 = () => {
+    const R = Math.cos(pi / 4);
+
+    const material_left = new Lambertian(color(0, 0, 1));
+    const material_right = new Lambertian(color(1, 0, 0));
+
+    const world = new HittableList();
+    world.add(new Sphere(point3(-R, 0, -1), R, material_left));
+    world.add(new Sphere(point3(R, 0, -1), R, material_right));
+
+    return world;
+};
+
+const main = () => {
+    const aspect_ratio = 16.0 / 9.0;
+    const imageWidth = 300;
+    const imageHeight = Math.floor(imageWidth / aspect_ratio);
+    const samples_per_pixel = 20;
+    const max_depth = 10;
+
+    const world = world2();
+
+    const cam = new Camera(90, aspect_ratio);
 
     const run = (ctx: CanvasRenderingContext2D) => {
         const imageData = ctx.createImageData(imageWidth, imageHeight);
