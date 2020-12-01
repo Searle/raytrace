@@ -121,29 +121,37 @@ class Camera {
     public horizontal: Vec3;
     public vertical: Vec3;
 
-    constructor(vfov: number, aspect_ratio: number) {
+    constructor(
+        lookfrom: Point3,
+        lookat: Point3,
+        vup: Vec3,
+        vfov: number, // vertical field-of-view in degrees
+        aspect_ratio: number
+    ) {
         const theta = degrees_to_radians(vfov);
         const h = Math.tan(theta / 2);
         const viewport_height = 2.0 * h;
         const viewport_width = aspect_ratio * viewport_height;
-        const focal_length = 1.0;
 
-        this.origin = point3(0, 0, 0);
-        this.horizontal = vec3(viewport_width, 0, 0);
-        this.vertical = vec3(0, viewport_height, 0);
+        const w = unitVector(lookfrom.sub(lookat));
+        const u = unitVector(cross(vup, w));
+        const v = cross(w, u);
+
+        this.origin = lookfrom;
+        this.horizontal = cmul(viewport_width, u);
+        this.vertical = cmul(viewport_height, v);
         this.lower_left_corner = this.origin
             .sub(divc(this.horizontal, 2))
             .sub(divc(this.vertical, 2))
-            .sub(vec3())
-            .sub(vec3(0, 0, focal_length));
+            .sub(w);
     }
 
-    public get_ray(u: number, v: number) {
+    public get_ray(s: number, t: number) {
         return ray(
             this.origin,
             this.lower_left_corner
-                .add(cmul(u, this.horizontal))
-                .add(cmul(v, this.vertical))
+                .add(cmul(s, this.horizontal))
+                .add(cmul(t, this.vertical))
                 .sub(this.origin)
         );
     }
@@ -395,6 +403,24 @@ const world2 = () => {
     return world;
 };
 
+const cam1 = (aspect_ratio: number) =>
+    new Camera(
+        point3(-2, 2, 1),
+        point3(0, 0, -1),
+        vec3(0, 1, 0),
+        90,
+        aspect_ratio
+    );
+
+const cam2 = (aspect_ratio: number) =>
+    new Camera(
+        point3(-2, 2, 1),
+        point3(0, 0, -1),
+        vec3(0, 1, 0),
+        20,
+        aspect_ratio
+    );
+
 const main = () => {
     const aspect_ratio = 16.0 / 9.0;
     const imageWidth = 300;
@@ -402,9 +428,8 @@ const main = () => {
     const samples_per_pixel = 20;
     const max_depth = 10;
 
-    const world = world2();
-
-    const cam = new Camera(90, aspect_ratio);
+    const world = world1();
+    const cam = cam2(aspect_ratio);
 
     const run = (ctx: CanvasRenderingContext2D) => {
         const imageData = ctx.createImageData(imageWidth, imageHeight);
