@@ -210,7 +210,7 @@ const ray_color = (r: Ray, world: Hittable, depth: number): Color => {
     if (depth <= 0) return color(0, 0, 0);
 
     let rec = new HitRecord();
-    if (world.hit(r, 0, infinity, rec)) {
+    if (world.hit(r, 0.00001, infinity, rec)) {
         const target = rec.p.add(rec.normal).add(random_in_unit_sphere());
         return cmul(
             0.5,
@@ -224,10 +224,10 @@ const ray_color = (r: Ray, world: Hittable, depth: number): Color => {
 
 const main = () => {
     const aspect_ratio = 16.0 / 9.0;
-    const imageWidth = 400;
+    const imageWidth = 300;
     const imageHeight = Math.floor(imageWidth / aspect_ratio);
-    const samples_per_pixel = 4;
-    const max_depth = 10;
+    const samples_per_pixel = 10;
+    const max_depth = 3;
 
     const world = new HittableList();
     world.add(new Sphere(point3(0, 0, -1), 0.5));
@@ -250,11 +250,11 @@ const main = () => {
                         pixel_color.mutable_add(ray_color(r, world, max_depth));
                     }
                     imageData.data[i] =
-                        (pixel_color.x / samples_per_pixel) * 255;
+                        Math.sqrt(pixel_color.x / samples_per_pixel) * 255;
                     imageData.data[i + 1] =
-                        (pixel_color.y / samples_per_pixel) * 255;
+                        Math.sqrt(pixel_color.y / samples_per_pixel) * 255;
                     imageData.data[i + 2] =
-                        (pixel_color.z / samples_per_pixel) * 255;
+                        Math.sqrt(pixel_color.z / samples_per_pixel) * 255;
                     imageData.data[i + 3] = 255;
                     i += 4;
                 }
