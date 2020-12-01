@@ -40,6 +40,7 @@ const divc = (v: Vec3, t: number) => vec3(v.x / t, v.y / t, v.z / t);
 const dot = (u: Vec3, v: Vec3) => u.x * v.x + u.y * v.y + u.z * v.z;
 const cross = (u: Vec3, v: Vec3) =>
     vec3(u.y * v.z - u.z * v.y, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x);
+const lerp = (u: Vec3, v: Vec3, t: number) => cmul(1.0 - t, u).add(cmul(t, v));
 
 const unitVector = (v: Vec3) => divc(v, v.length());
 
@@ -50,20 +51,29 @@ import Color = Vec.Vec3;
 const color = (x: number, y: number, z: number) => new Color(x, y, z);
 
 class Ray {
-    constructor(public orig: Point3, public direction: Vec3) {}
+    constructor(public origin: Point3, public direction: Vec3) {}
     public at(t: number) {
-        return this.orig.add(cmul(t, this.direction));
+        return this.origin.add(cmul(t, this.direction));
     }
 }
 
 const ray = (orig: Point3, direction: Vec3) => new Ray(orig, direction);
 
+const hit_sphere = (center: Point3, radius: number, r: Ray) => {
+    const oc = r.origin.sub(center);
+    const a = dot(r.direction, r.direction);
+    const b = 2 * dot(oc, r.direction);
+    const c = dot(oc, oc) - radius * radius;
+    const discriminant = b * b - 4 * a * c;
+    return discriminant > 0;
+};
+
 const ray_color = (r: Ray): Color => {
+    if (hit_sphere(point3(0, 0, -1), 0.5, r)) return color(1, 0, 0);
+
     const unit_direction = unitVector(r.direction);
     const t = 0.5 * (unit_direction.y + 1.0);
-    return cmul(1.0 - t, color(1.0, 1.0, 1.0)).add(
-        cmul(t, color(0.5, 0.7, 1.0))
-    );
+    return lerp(color(1.0, 1.0, 1.0), color(0.5, 0.7, 1.0), t);
 };
 
 const main = () => {
