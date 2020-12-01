@@ -277,7 +277,11 @@ class Lambertian implements Material {
 }
 
 class Metal implements Material {
-    constructor(public albedo: Color) {}
+    public fuzz;
+
+    constructor(public albedo: Color, fuzz: number) {
+        this.fuzz = Math.min(fuzz, 1);
+    }
 
     public scatter(
         r_in: Ray,
@@ -286,7 +290,9 @@ class Metal implements Material {
         scattered: Ray
     ) {
         const reflected = reflect(unitVector(r_in.direction), rec.normal);
-        scattered.copy(ray(rec.p, reflected));
+        scattered.copy(
+            ray(rec.p, reflected.add(cmul(this.fuzz, random_in_unit_sphere())))
+        );
         attenuation.copy(this.albedo);
         return dot(scattered.direction, rec.normal) > 0;
     }
@@ -313,13 +319,13 @@ const main = () => {
     const aspect_ratio = 16.0 / 9.0;
     const imageWidth = 300;
     const imageHeight = Math.floor(imageWidth / aspect_ratio);
-    const samples_per_pixel = 10;
+    const samples_per_pixel = 20;
     const max_depth = 3;
 
     const material_ground = new Lambertian(color(0.8, 0.8, 0.0));
     const material_center = new Lambertian(color(0.7, 0.3, 0.3));
-    const material_left = new Metal(color(0.8, 0.8, 0.8));
-    const material_right = new Metal(color(0.8, 0.6, 0.2));
+    const material_left = new Metal(color(0.8, 0.8, 0.8), 0.3);
+    const material_right = new Metal(color(0.8, 0.6, 0.2), 1);
 
     const world = new HittableList();
     world.add(new Sphere(point3(0, -100.5, -1), 100, material_ground));
