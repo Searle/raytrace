@@ -199,21 +199,34 @@ class Sphere implements Hittable {
     }
 }
 
-const random_in_unit_sphere = () => {
+type DiffuseMethod = (normal?: Vec3) => Vec3;
+
+const random_in_unit_sphere: DiffuseMethod = () => {
     while (true) {
         const p = randomv2(-1, 1);
         if (p.lengthSquared() < 1) return p;
     }
 };
 
-const random_unit_vector = () => unitVector(random_in_unit_sphere());
+const random_unit_vector: DiffuseMethod = () =>
+    unitVector(random_in_unit_sphere());
+
+const random_in_hemisphere: DiffuseMethod = (normal?: Vec3) => {
+    const in_unit_sphere = random_in_unit_sphere();
+    if (dot(in_unit_sphere, normal!) > 0.0)
+        // In the same hemisphere as the normal
+        return in_unit_sphere;
+    else return in_unit_sphere.neg();
+};
+
+const diffuse_method: DiffuseMethod = random_unit_vector;
 
 const ray_color = (r: Ray, world: Hittable, depth: number): Color => {
     if (depth <= 0) return color(0, 0, 0);
 
     let rec = new HitRecord();
     if (world.hit(r, 0.00001, infinity, rec)) {
-        const target = rec.p.add(rec.normal).add(random_unit_vector());
+        const target = rec.p.add(rec.normal).add(diffuse_method(rec.normal));
         return cmul(
             0.5,
             ray_color(ray(rec.p, target.sub(rec.p)), world, depth - 1)
