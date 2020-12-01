@@ -115,44 +115,61 @@ class Ray {
 }
 const ray = (orig: Point3, direction: Vec3) => new Ray(orig, direction);
 
+const random_in_unit_disk = () => {
+    while (true) {
+        const p = vec3(random_double2(-1, 1), random_double2(-1, 1), 0);
+        if (p.lengthSquared() < 1) return p;
+    }
+};
+
 class Camera {
     public origin: Point3;
     public lower_left_corner: Point3;
     public horizontal: Vec3;
     public vertical: Vec3;
+    public u: Vec3;
+    public v: Vec3;
+    public w: Vec3;
+    public lens_radius: number;
 
     constructor(
         lookfrom: Point3,
         lookat: Point3,
         vup: Vec3,
         vfov: number, // vertical field-of-view in degrees
-        aspect_ratio: number
+        aspect_ratio: number,
+        aperture: number,
+        focus_dist: number
     ) {
         const theta = degrees_to_radians(vfov);
         const h = Math.tan(theta / 2);
         const viewport_height = 2.0 * h;
         const viewport_width = aspect_ratio * viewport_height;
 
-        const w = unitVector(lookfrom.sub(lookat));
-        const u = unitVector(cross(vup, w));
-        const v = cross(w, u);
+        this.w = unitVector(lookfrom.sub(lookat));
+        this.u = unitVector(cross(vup, this.w));
+        this.v = cross(this.w, this.u);
 
         this.origin = lookfrom;
-        this.horizontal = cmul(viewport_width, u);
-        this.vertical = cmul(viewport_height, v);
+        this.horizontal = cmul(focus_dist * viewport_width, this.u);
+        this.vertical = cmul(focus_dist * viewport_height, this.v);
         this.lower_left_corner = this.origin
             .sub(divc(this.horizontal, 2))
             .sub(divc(this.vertical, 2))
-            .sub(w);
+            .sub(cmul(focus_dist, this.w));
+        this.lens_radius = aperture / 2;
     }
 
     public get_ray(s: number, t: number) {
+        const rd = cmul(this.lens_radius, random_in_unit_disk());
+        const offset = mulc(this.u, rd.x).add(mulc(this.v, rd.y));
         return ray(
-            this.origin,
+            this.origin.add(offset),
             this.lower_left_corner
                 .add(cmul(s, this.horizontal))
                 .add(cmul(t, this.vertical))
                 .sub(this.origin)
+                .sub(offset)
         );
     }
 }
@@ -403,13 +420,26 @@ const world2 = () => {
     return world;
 };
 
+const cam0 = (aspect_ratio: number) =>
+    new Camera(
+        point3(0, 0, 0),
+        point3(0, 0, -1),
+        vec3(0, 1, 0),
+        90,
+        aspect_ratio,
+        0,
+        1
+    );
+
 const cam1 = (aspect_ratio: number) =>
     new Camera(
         point3(-2, 2, 1),
         point3(0, 0, -1),
         vec3(0, 1, 0),
         90,
-        aspect_ratio
+        aspect_ratio,
+        0,
+        1
     );
 
 const cam2 = (aspect_ratio: number) =>
@@ -418,8 +448,27 @@ const cam2 = (aspect_ratio: number) =>
         point3(0, 0, -1),
         vec3(0, 1, 0),
         20,
-        aspect_ratio
+        aspect_ratio,
+        0,
+        1
     );
+
+const cam3 = (aspect_ratio: number) => {
+    const lookfrom = point3(3, 3, 2);
+    const lookat = point3(0, 0, -1);
+    const vup = vec3(0, 1, 0);
+    const dist_to_focus = lookfrom.sub(lookat).length();
+    const aperture = 2.0;
+    return new Camera(
+        lookfrom,
+        lookat,
+        vup,
+        20,
+        aspect_ratio,
+        aperture,
+        dist_to_focus
+    );
+};
 
 const main = () => {
     const aspect_ratio = 16.0 / 9.0;
@@ -429,7 +478,7 @@ const main = () => {
     const max_depth = 10;
 
     const world = world1();
-    const cam = cam2(aspect_ratio);
+    const cam = cam3(aspect_ratio);
 
     const run = (ctx: CanvasRenderingContext2D) => {
         const imageData = ctx.createImageData(imageWidth, imageHeight);
