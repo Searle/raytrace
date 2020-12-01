@@ -206,12 +206,14 @@ const random_in_unit_sphere = () => {
     }
 };
 
+const random_unit_vector = () => unitVector(random_in_unit_sphere());
+
 const ray_color = (r: Ray, world: Hittable, depth: number): Color => {
     if (depth <= 0) return color(0, 0, 0);
 
     let rec = new HitRecord();
     if (world.hit(r, 0.00001, infinity, rec)) {
-        const target = rec.p.add(rec.normal).add(random_in_unit_sphere());
+        const target = rec.p.add(rec.normal).add(random_unit_vector());
         return cmul(
             0.5,
             ray_color(ray(rec.p, target.sub(rec.p)), world, depth - 1)
