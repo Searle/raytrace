@@ -311,6 +311,13 @@ class Dielectric implements Material {
     // ir = index_of_refraction
     constructor(public ir: number) {}
 
+    private static reflectance(cosine: number, ref_idx: number) {
+        // Use Schlick's approximation for reflectance.
+        let r0 = (1 - ref_idx) / (1 + ref_idx);
+        r0 = r0 * r0;
+        return r0 + (1 - r0) * Math.pow(1 - cosine, 5);
+    }
+
     public scatter(
         r_in: Ray,
         rec: HitRecord,
@@ -327,7 +334,12 @@ class Dielectric implements Material {
         const cannot_refract = refraction_ratio * sin_theta > 1.0;
         let direction: Vec3;
 
-        if (cannot_refract) direction = reflect(unit_direction, rec.normal);
+        if (
+            cannot_refract ||
+            Dielectric.reflectance(cos_theta, refraction_ratio) >
+                random_double()
+        )
+            direction = reflect(unit_direction, rec.normal);
         else direction = refract(unit_direction, rec.normal, refraction_ratio);
 
         scattered.copy(ray(rec.p, direction));
