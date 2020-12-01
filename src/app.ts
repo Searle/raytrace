@@ -56,12 +56,20 @@ const mul = (u: Vec3, v: Vec3) => vec3(u.x * v.x, u.y * v.y, u.z * v.z);
 const cmul = (t: number, v: Vec3) => vec3(t * v.x, t * v.y, t * v.z);
 const mulc = (v: Vec3, t: number) => vec3(t * v.x, t * v.y, t * v.z);
 const divc = (v: Vec3, t: number) => vec3(v.x / t, v.y / t, v.z / t);
+
+const unitVector = (v: Vec3) => divc(v, v.length());
 const dot = (u: Vec3, v: Vec3) => u.x * v.x + u.y * v.y + u.z * v.z;
 const cross = (u: Vec3, v: Vec3) =>
     vec3(u.y * v.z - u.z * v.y, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x);
-const lerp = (u: Vec3, v: Vec3, t: number) => cmul(1.0 - t, u).add(cmul(t, v));
 
-const unitVector = (v: Vec3) => divc(v, v.length());
+const lerp = (u: Vec3, v: Vec3, t: number) => cmul(1.0 - t, u).add(cmul(t, v));
+const randomv = () => vec3(random_double(), random_double(), random_double());
+const randomv2 = (min: number, max: number) =>
+    vec3(
+        random_double2(min, max),
+        random_double2(min, max),
+        random_double2(min, max)
+    );
 
 import Point3 = Vec.Vec3;
 const point3 = (x: number, y: number, z: number) => new Point3(x, y, z);
@@ -149,9 +157,9 @@ class HittableList implements Hittable {
             if (hittable.hit(r, t_min, closest_so_far, temp_rec)) {
                 hit_anything = true;
                 closest_so_far = temp_rec.t;
-                //rec.t = temp_rec.t;
-                //rec.p = temp_rec.p;
-                //rec.front_face = temp_rec.front_face;
+                rec.t = temp_rec.t;
+                rec.p = temp_rec.p;
+                rec.front_face = temp_rec.front_face;
                 rec.normal = temp_rec.normal;
             }
         }
@@ -191,23 +199,23 @@ class Sphere implements Hittable {
     }
 }
 
-const hit_sphere = (center: Point3, radius: number, r: Ray) => {
-    const oc = r.origin.sub(center);
-    const a = r.direction.lengthSquared();
-    const half_b = dot(oc, r.direction);
-    const c = oc.lengthSquared() - radius * radius;
-    const discriminant = half_b * half_b - a * c;
-
-    if (discriminant < 0) {
-        return -1;
+const random_in_unit_sphere = () => {
+    while (true) {
+        const p = randomv2(-1, 1);
+        if (p.lengthSquared() < 1) return p;
     }
-    return (-half_b - Math.sqrt(discriminant)) / a;
 };
 
-const ray_color = (r: Ray, world: Hittable): Color => {
+const ray_color = (r: Ray, world: Hittable, depth: number): Color => {
+    if (depth <= 0) return color(0, 0, 0);
+
     let rec = new HitRecord();
     if (world.hit(r, 0, infinity, rec)) {
-        return cmul(0.5, rec.normal.add(color(1, 1, 1)));
+        const target = rec.p.add(rec.normal).add(random_in_unit_sphere());
+        return cmul(
+            0.5,
+            ray_color(ray(rec.p, target.sub(rec.p)), world, depth - 1)
+        );
     }
     const unit_direction = unitVector(r.direction);
     const t = 0.5 * (unit_direction.y + 1.0);
@@ -218,7 +226,8 @@ const main = () => {
     const aspect_ratio = 16.0 / 9.0;
     const imageWidth = 400;
     const imageHeight = Math.floor(imageWidth / aspect_ratio);
-    const samples_per_pixel = 3;
+    const samples_per_pixel = 4;
+    const max_depth = 10;
 
     const world = new HittableList();
     world.add(new Sphere(point3(0, 0, -1), 0.5));
@@ -238,7 +247,7 @@ const main = () => {
                         const u = (x + random_double()) / (imageWidth - 1);
                         const v = (y + random_double()) / (imageHeight - 1);
                         const r = cam.get_ray(u, v);
-                        pixel_color.mutable_add(ray_color(r, world));
+                        pixel_color.mutable_add(ray_color(r, world, max_depth));
                     }
                     imageData.data[i] =
                         (pixel_color.x / samples_per_pixel) * 255;
