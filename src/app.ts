@@ -5,6 +5,16 @@ const pi = Math.PI;
 
 const degrees_to_radians = (degrees: number) => (degrees * pi) / 180;
 
+// Returns a random real in [0,1).
+const random_double = () => Math.random() % 1;
+
+// Returns a random real in [min,max).
+const random_double2 = (min: number, max: number) =>
+    min + (max - min) * (Math.random() % 1);
+
+const clamp = (x: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, x));
+
 module Vec {
     export class Vec3 {
         constructor(public x: number, public y: number, public z: number) {}
@@ -16,6 +26,11 @@ module Vec {
         }
         public sub(vec: Vec3) {
             return new Vec3(this.x - vec.x, this.y - vec.y, this.z - vec.z);
+        }
+        public mutable_add(vec: Vec3) {
+            this.x += vec.x;
+            this.y += vec.y;
+            this.z += vec.z;
         }
         public mul(vec: Vec3) {
             return new Vec3(this.x * vec.x, this.y * vec.y, this.z * vec.z);
@@ -61,6 +76,38 @@ class Ray {
     }
 }
 const ray = (orig: Point3, direction: Vec3) => new Ray(orig, direction);
+
+class Camera {
+    public origin: Point3;
+    public lower_left_corner: Point3;
+    public horizontal: Vec3;
+    public vertical: Vec3;
+
+    constructor(aspect_ratio: number) {
+        const viewport_height = 2.0;
+        const viewport_width = aspect_ratio * viewport_height;
+        const focal_length = 1.0;
+
+        this.origin = point3(0, 0, 0);
+        this.horizontal = vec3(viewport_width, 0, 0);
+        this.vertical = vec3(0, viewport_height, 0);
+        this.lower_left_corner = this.origin
+            .sub(divc(this.horizontal, 2))
+            .sub(divc(this.vertical, 2))
+            .sub(vec3())
+            .sub(vec3(0, 0, focal_length));
+    }
+
+    get_ray(u: number, v: number) {
+        return ray(
+            this.origin,
+            this.lower_left_corner
+                .add(cmul(u, this.horizontal))
+                .add(cmul(v, this.vertical))
+                .sub(this.origin)
+        );
+    }
+}
 
 class HitRecord {
     public t!: number;
@@ -171,23 +218,13 @@ const main = () => {
     const aspect_ratio = 16.0 / 9.0;
     const imageWidth = 400;
     const imageHeight = Math.floor(imageWidth / aspect_ratio);
+    const samples_per_pixel = 3;
 
     const world = new HittableList();
     world.add(new Sphere(point3(0, 0, -1), 0.5));
     world.add(new Sphere(point3(0, -100.5, -1), 100));
 
-    const viewport_height = 2.0;
-    const viewport_width = aspect_ratio * viewport_height;
-    const focal_length = 1.0;
-
-    const origin = point3(0, 0, 0);
-    const horizontal = vec3(viewport_width, 0, 0);
-    const vertical = vec3(0, viewport_height, 0);
-    const lower_left_corner = origin
-        .sub(divc(horizontal, 2))
-        .sub(divc(vertical, 2))
-        .sub(vec3())
-        .sub(vec3(0, 0, focal_length));
+    const cam = new Camera(aspect_ratio);
 
     const run = (ctx: CanvasRenderingContext2D) => {
         const imageData = ctx.createImageData(imageWidth, imageHeight);
@@ -196,21 +233,19 @@ const main = () => {
             let i = 0;
             for (let y = imageHeight; y >= 0; --y) {
                 for (let x = 0; x < imageWidth; ++x) {
-                    const u = x / (imageWidth - 1);
-                    const v = y / (imageHeight - 1);
-
-                    const r = ray(
-                        origin,
-                        lower_left_corner
-                            .add(cmul(u, horizontal))
-                            .add(cmul(v, vertical))
-                            .sub(origin)
-                    );
-                    const pixel_color = ray_color(r, world);
-
-                    imageData.data[i] = pixel_color.x * 255;
-                    imageData.data[i + 1] = pixel_color.y * 255;
-                    imageData.data[i + 2] = pixel_color.z * 255;
+                    const pixel_color = color(0, 0, 0);
+                    for (let s = 0; s < samples_per_pixel; ++s) {
+                        const u = (x + random_double()) / (imageWidth - 1);
+                        const v = (y + random_double()) / (imageHeight - 1);
+                        const r = cam.get_ray(u, v);
+                        pixel_color.mutable_add(ray_color(r, world));
+                    }
+                    imageData.data[i] =
+                        (pixel_color.x / samples_per_pixel) * 255;
+                    imageData.data[i + 1] =
+                        (pixel_color.y / samples_per_pixel) * 255;
+                    imageData.data[i + 2] =
+                        (pixel_color.z / samples_per_pixel) * 255;
                     imageData.data[i + 3] = 255;
                     i += 4;
                 }
