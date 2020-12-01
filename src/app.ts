@@ -320,8 +320,17 @@ class Dielectric implements Material {
         attenuation.copy(color(1.0, 1.0, 1.0));
         const refraction_ratio = rec.front_face ? 1.0 / this.ir : this.ir;
         const unit_direction = unitVector(r_in.direction);
-        const refracted = refract(unit_direction, rec.normal, refraction_ratio);
-        scattered.copy(ray(rec.p, refracted));
+
+        const cos_theta = Math.min(dot(unit_direction.neg(), rec.normal), 1.0);
+        const sin_theta = Math.sqrt(1.0 - cos_theta * cos_theta);
+
+        const cannot_refract = refraction_ratio * sin_theta > 1.0;
+        let direction: Vec3;
+
+        if (cannot_refract) direction = reflect(unit_direction, rec.normal);
+        else direction = refract(unit_direction, rec.normal, refraction_ratio);
+
+        scattered.copy(ray(rec.p, direction));
         return true;
     }
 }
@@ -351,9 +360,9 @@ const main = () => {
     const max_depth = 10;
 
     const material_ground = new Lambertian(color(0.8, 0.8, 0.0));
-    const material_center = new Dielectric(1.5);
+    const material_center = new Lambertian(color(0.1, 0.2, 0.5));
     const material_left = new Dielectric(1.5);
-    const material_right = new Metal(color(0.8, 0.6, 0.2), 1);
+    const material_right = new Metal(color(0.8, 0.6, 0.2), 0);
 
     const world = new HittableList();
     world.add(new Sphere(point3(0, -100.5, -1), 100, material_ground));
