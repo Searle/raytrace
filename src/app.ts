@@ -41,6 +41,19 @@ module Vec {
         public length() {
             return Math.sqrt(this.lengthSquared());
         }
+        public copy(vec: Vec3) {
+            this.x = vec.x;
+            this.y = vec.y;
+            this.z = vec.z;
+        }
+        public near_zero() {
+            // Return true if the vector is close to zero in all dimensions.
+            return (
+                Math.abs(this.x) < 1e-8 &&
+                Math.abs(this.y) < 1e-8 &&
+                Math.abs(this.z) < 1e-8
+            );
+        }
         public toString() {
             return "[" + this.x + " " + this.y + " " + this.z + "]";
         }
@@ -49,6 +62,7 @@ module Vec {
 
 import Vec3 = Vec.Vec3;
 const vec3 = (x = 0, y = 0, z = 0) => new Vec3(x, y, z);
+const zeroVec3 = vec3(0, 0, 0);
 
 const add = (u: Vec3, v: Vec3) => vec3(u.x + v.x, u.y + v.y, u.z + v.z);
 const sub = (u: Vec3, v: Vec3) => vec3(u.x - v.x, u.y - v.y, u.z - v.z);
@@ -70,17 +84,24 @@ const randomv2 = (min: number, max: number) =>
         random_double2(min, max),
         random_double2(min, max)
     );
+const reflect = (v: Vec3, n: Vec3) => v.sub(cmul(2 * dot(v, n), n));
 
 import Point3 = Vec.Vec3;
 const point3 = (x: number, y: number, z: number) => new Point3(x, y, z);
+const zeroPoint3 = point3(0, 0, 0);
 
 import Color = Vec.Vec3;
 const color = (x: number, y: number, z: number) => new Color(x, y, z);
+const zeroColor = color(0, 0, 0);
 
 class Ray {
     constructor(public origin: Point3, public direction: Vec3) {}
     public at(t: number) {
         return this.origin.add(cmul(t, this.direction));
+    }
+    public copy(ray: Ray) {
+        this.origin = ray.origin;
+        this.direction = ray.direction;
     }
 }
 const ray = (orig: Point3, direction: Vec3) => new Ray(orig, direction);
@@ -106,7 +127,7 @@ class Camera {
             .sub(vec3(0, 0, focal_length));
     }
 
-    get_ray(u: number, v: number) {
+    public get_ray(u: number, v: number) {
         return ray(
             this.origin,
             this.lower_left_corner
@@ -117,15 +138,32 @@ class Camera {
     }
 }
 
-class HitRecord {
-    public t!: number;
-    public p!: Point3;
-    public front_face!: boolean;
-    public normal!: Vec3;
+interface Material {
+    scatter: (
+        r: Ray,
+        rec: HitRecord,
+        attenuation: Color,
+        scattered: Ray
+    ) => boolean;
+}
 
-    set_face_normal(r: Ray, outward_normal: Vec3) {
+class HitRecord {
+    public p!: Point3;
+    public normal!: Vec3;
+    public material?: Material;
+    public t!: number;
+    public front_face!: boolean;
+
+    public set_face_normal(r: Ray, outward_normal: Vec3) {
         this.front_face = dot(r.direction, outward_normal) < 0;
         this.normal = this.front_face ? outward_normal : outward_normal.neg();
+    }
+    public copy(rec: HitRecord) {
+        this.p = rec.p;
+        this.normal = rec.normal;
+        this.material = rec.material;
+        this.t = rec.t;
+        this.front_face = rec.front_face;
     }
 }
 
@@ -140,11 +178,11 @@ class HittableList implements Hittable {
         if (hittable) this.add(hittable);
     }
 
-    clear() {
+    public clear() {
         this.hittables.length = 0;
     }
 
-    add(hittable: Hittable) {
+    public add(hittable: Hittable) {
         this.hittables.push(hittable);
     }
 
@@ -157,10 +195,7 @@ class HittableList implements Hittable {
             if (hittable.hit(r, t_min, closest_so_far, temp_rec)) {
                 hit_anything = true;
                 closest_so_far = temp_rec.t;
-                rec.t = temp_rec.t;
-                rec.p = temp_rec.p;
-                rec.front_face = temp_rec.front_face;
-                rec.normal = temp_rec.normal;
+                rec.copy(temp_rec);
             }
         }
         return hit_anything;
@@ -168,7 +203,11 @@ class HittableList implements Hittable {
 }
 
 class Sphere implements Hittable {
-    constructor(public center: Point3, public radius: number) {}
+    constructor(
+        public center: Point3,
+        public radius: number,
+        public material: Material
+    ) {}
 
     public hit(r: Ray, t_min: number, t_max: number, rec: HitRecord) {
         const oc = r.origin.sub(this.center);
@@ -194,6 +233,7 @@ class Sphere implements Hittable {
         rec.p = r.at(root);
         const outward_normal = divc(rec.p.sub(this.center), this.radius);
         rec.set_face_normal(r, outward_normal);
+        rec.material = this.material;
 
         return true;
     }
@@ -221,16 +261,48 @@ const random_in_hemisphere: DiffuseMethod = (normal?: Vec3) => {
 
 const diffuse_method: DiffuseMethod = random_unit_vector;
 
+class Lambertian implements Material {
+    constructor(public albedo: Color) {}
+
+    public scatter(r: Ray, rec: HitRecord, attenuation: Color, scattered: Ray) {
+        let scatter_direction = rec.normal.add(random_unit_vector());
+
+        // Catch degenerate scatter direction
+        if (scatter_direction.near_zero()) scatter_direction = rec.normal;
+
+        scattered.copy(ray(rec.p, scatter_direction));
+        attenuation.copy(this.albedo);
+        return true;
+    }
+}
+
+class Metal implements Material {
+    constructor(public albedo: Color) {}
+
+    public scatter(
+        r_in: Ray,
+        rec: HitRecord,
+        attenuation: Color,
+        scattered: Ray
+    ) {
+        const reflected = reflect(unitVector(r_in.direction), rec.normal);
+        scattered.copy(ray(rec.p, reflected));
+        attenuation.copy(this.albedo);
+        return dot(scattered.direction, rec.normal) > 0;
+    }
+}
+
 const ray_color = (r: Ray, world: Hittable, depth: number): Color => {
-    if (depth <= 0) return color(0, 0, 0);
+    if (depth <= 0) return zeroColor;
 
     let rec = new HitRecord();
     if (world.hit(r, 0.00001, infinity, rec)) {
-        const target = rec.p.add(rec.normal).add(diffuse_method(rec.normal));
-        return cmul(
-            0.5,
-            ray_color(ray(rec.p, target.sub(rec.p)), world, depth - 1)
-        );
+        let scattered = ray(zeroPoint3, zeroVec3);
+        let attenuation = color(0, 0, 0);
+        if (rec.material?.scatter(r, rec, attenuation, scattered)) {
+            return attenuation.mul(ray_color(scattered, world, depth - 1));
+        }
+        return zeroColor;
     }
     const unit_direction = unitVector(r.direction);
     const t = 0.5 * (unit_direction.y + 1.0);
@@ -244,9 +316,16 @@ const main = () => {
     const samples_per_pixel = 10;
     const max_depth = 3;
 
+    const material_ground = new Lambertian(color(0.8, 0.8, 0.0));
+    const material_center = new Lambertian(color(0.7, 0.3, 0.3));
+    const material_left = new Metal(color(0.8, 0.8, 0.8));
+    const material_right = new Metal(color(0.8, 0.6, 0.2));
+
     const world = new HittableList();
-    world.add(new Sphere(point3(0, 0, -1), 0.5));
-    world.add(new Sphere(point3(0, -100.5, -1), 100));
+    world.add(new Sphere(point3(0, -100.5, -1), 100, material_ground));
+    world.add(new Sphere(point3(0, 0, -1), 0.5, material_center));
+    world.add(new Sphere(point3(-1, 0, -1), 0.5, material_left));
+    world.add(new Sphere(point3(1, 0, -1), 0.5, material_right));
 
     const cam = new Camera(aspect_ratio);
 
