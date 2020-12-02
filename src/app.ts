@@ -420,10 +420,60 @@ const world2 = () => {
     return world;
 };
 
+const random_scene = () => {
+    const world = new HittableList();
+
+    const ground_material = new Lambertian(color(0.5, 0.5, 0.5));
+    world.add(new Sphere(point3(0, -1000, 0), 1000, ground_material));
+
+    for (let a = -11; a < 11; a++) {
+        for (let b = -11; b < 11; b++) {
+            const choose_mat = random_double();
+            const center = point3(
+                a + 0.9 * random_double(),
+                0.2,
+                b + 0.9 * random_double()
+            );
+
+            if (center.sub(point3(4, 0.2, 0)).length() > 0.9) {
+                let sphere_material: Material;
+
+                if (choose_mat < 0.8) {
+                    // diffuse
+                    const albedo = randomv().mul(randomv());
+                    const sphere_material = new Lambertian(albedo);
+                    world.add(new Sphere(center, 0.2, sphere_material));
+                } else if (choose_mat < 0.95) {
+                    // metal
+                    const albedo = randomv2(0.5, 1);
+                    const fuzz = random_double2(0, 0.5);
+                    const sphere_material = new Metal(albedo, fuzz);
+                    world.add(new Sphere(center, 0.2, sphere_material));
+                } else {
+                    // glass
+                    sphere_material = new Dielectric(1.5);
+                    world.add(new Sphere(center, 0.2, sphere_material));
+                }
+            }
+        }
+    }
+
+    const material1 = new Dielectric(1.5);
+    world.add(new Sphere(point3(0, 1, 0), 1.0, material1));
+
+    const material2 = new Lambertian(color(0.4, 0.2, 0.1));
+    world.add(new Sphere(point3(-4, 1, 0), 1.0, material2));
+
+    const material3 = new Metal(color(0.7, 0.6, 0.5), 0.0);
+    world.add(new Sphere(point3(4, 1, 0), 1.0, material3));
+
+    return world;
+};
+
 const cam0 = (aspect_ratio: number) =>
     new Camera(
+        point3(0, 0, 1),
         point3(0, 0, 0),
-        point3(0, 0, -1),
         vec3(0, 1, 0),
         90,
         aspect_ratio,
@@ -470,44 +520,93 @@ const cam3 = (aspect_ratio: number) => {
     );
 };
 
-const main = () => {
-    const aspect_ratio = 16.0 / 9.0;
-    const imageWidth = 300;
-    const imageHeight = Math.floor(imageWidth / aspect_ratio);
-    const samples_per_pixel = 20;
-    const max_depth = 10;
+const render = (
+    ctx: CanvasRenderingContext2D,
+    imageWidth: number,
+    imageHeight: number,
+    samples_per_pixel: number,
+    max_depth: number,
+    world: HittableList,
+    cam: Camera
+) => {
+    const imageData = ctx.createImageData(imageWidth, imageHeight);
 
-    const world = world1();
-    const cam = cam3(aspect_ratio);
-
-    const run = (ctx: CanvasRenderingContext2D) => {
-        const imageData = ctx.createImageData(imageWidth, imageHeight);
-
-        const render = () => {
-            let i = 0;
-            for (let y = imageHeight; y >= 0; --y) {
-                for (let x = 0; x < imageWidth; ++x) {
-                    const pixel_color = color(0, 0, 0);
-                    for (let s = 0; s < samples_per_pixel; ++s) {
-                        const u = (x + random_double()) / (imageWidth - 1);
-                        const v = (y + random_double()) / (imageHeight - 1);
-                        const r = cam.get_ray(u, v);
-                        pixel_color.mutable_add(ray_color(r, world, max_depth));
-                    }
-                    imageData.data[i] =
-                        Math.sqrt(pixel_color.x / samples_per_pixel) * 255;
-                    imageData.data[i + 1] =
-                        Math.sqrt(pixel_color.y / samples_per_pixel) * 255;
-                    imageData.data[i + 2] =
-                        Math.sqrt(pixel_color.z / samples_per_pixel) * 255;
-                    imageData.data[i + 3] = 255;
-                    i += 4;
-                }
+    let i = 0;
+    for (let y = imageHeight; y >= 0; --y) {
+        for (let x = 0; x < imageWidth; ++x) {
+            const pixel_color = color(0, 0, 0);
+            for (let s = 0; s < samples_per_pixel; ++s) {
+                const u = (x + random_double()) / (imageWidth - 1);
+                const v = (y + random_double()) / (imageHeight - 1);
+                const r = cam.get_ray(u, v);
+                pixel_color.mutable_add(ray_color(r, world, max_depth));
             }
-            ctx.putImageData(imageData, 0, 0);
-        };
+            imageData.data[i] =
+                Math.sqrt(pixel_color.x / samples_per_pixel) * 255;
+            imageData.data[i + 1] =
+                Math.sqrt(pixel_color.y / samples_per_pixel) * 255;
+            imageData.data[i + 2] =
+                Math.sqrt(pixel_color.z / samples_per_pixel) * 255;
+            imageData.data[i + 3] = 255;
+            i += 4;
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
+};
 
-        render();
+const main = () => {
+    const run1 = (ctx: CanvasRenderingContext2D) => {
+        const aspect_ratio = 16.0 / 9.0;
+        const imageWidth = 300;
+        const imageHeight = Math.floor(imageWidth / aspect_ratio);
+        const samples_per_pixel = 20;
+        const max_depth = 10;
+        const world = world1();
+        const cam = cam3(aspect_ratio);
+        render(
+            ctx,
+            imageWidth,
+            imageHeight,
+            samples_per_pixel,
+            max_depth,
+            world,
+            cam
+        );
+    };
+
+    const run2 = (ctx: CanvasRenderingContext2D) => {
+        const aspect_ratio = 3.0 / 2.0;
+        const imageWidth = 400;
+        const imageHeight = Math.floor(imageWidth / aspect_ratio);
+        const samples_per_pixel = 5;
+        const max_depth = 5;
+
+        const world = random_scene();
+
+        const lookfrom = point3(13, 2, 3);
+        const lookat = point3(0, 0, 0);
+        const vup = vec3(0, 1, 0);
+        const dist_to_focus = 10;
+        const aperture = 0.1;
+        const cam = new Camera(
+            lookfrom,
+            lookat,
+            vup,
+            20,
+            aspect_ratio,
+            aperture,
+            dist_to_focus
+        );
+
+        render(
+            ctx,
+            imageWidth,
+            imageHeight,
+            samples_per_pixel,
+            max_depth,
+            world,
+            cam
+        );
     };
 
     const canvas = document.getElementById(
@@ -515,7 +614,7 @@ const main = () => {
     ) as HTMLCanvasElement | null;
     const ctx = canvas?.getContext("2d");
     if (ctx) {
-        run(ctx);
+        run2(ctx);
     }
 };
 
